@@ -12,11 +12,11 @@ export default function Sidebar() {
   useEffect(() => {
     let active = true;
     authFetch('/api/profile')
-      .then(async (response) => ({ status: response.status, ok: response.ok, data: await response.json() }))
-      .then(({ status, ok, data }) => {
+      .then(async (response) => ({ httpStatus: response.status, ok: response.ok, data: await response.json() }))
+      .then(({ httpStatus, ok, data }) => {
         if (!active) return;
         if (!ok) {
-          setAuthRequired(status === 401);
+          setAuthRequired(httpStatus === 401);
           return;
         }
 
