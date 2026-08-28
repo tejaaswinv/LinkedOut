@@ -41,7 +41,7 @@ export async function GET() {
   const companyIds = [...new Set((verifications || []).map((v) => v.company_id).concat(profile?.current_company_id || []).filter(Boolean))];
   const universityIds = [...new Set((studentVerifications || []).map((v) => v.university_id).concat(profile?.current_university_id || []).filter(Boolean))];
   const [{ data: companies }, { data: universities }] = await Promise.all([
-    companyIds.length ? admin.from('companies').select('id,name,slug').in('id', companyIds) : Promise.resolve({ data: [] }),
+    companyIds.length ? admin.from('companies').select('id,name,slug,domain,source').in('id', companyIds) : Promise.resolve({ data: [] }),
     universityIds.length ? admin.from('universities').select('id,name,slug,domain,city,country').in('id', universityIds) : Promise.resolve({ data: [] })
   ]);
   const companyMap = Object.fromEntries((companies || []).map((c) => [c.id, c]));
