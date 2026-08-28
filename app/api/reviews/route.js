@@ -92,15 +92,23 @@ export async function POST(request) {
   ]);
   if (!company) return NextResponse.json({ error: 'Company not found.' }, { status: 404 });
 
-  const { data: verification } = await admin
+  const { data: verificationRow } = await admin
     .from('employment_verifications')
-    .select('id')
+    .select('id,verified_until')
     .eq('user_id', auth.user.id)
     .eq('company_id', company.id)
+    .eq('employment_status', input.employmentStatus)
     .eq('status', 'verified')
     .order('verified_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  const verification = verificationRow && (!verificationRow.verified_until || new Date(verificationRow.verified_until).getTime() > Date.now())
+    ? verificationRow
+    : null;
+  if (verificationRow && !verification) {
+    await admin.from('employment_verifications').update({ status: 'expired' }).eq('id', verificationRow.id);
+  }
 
   const { data: review, error } = await admin.from('reviews').insert({
     user_id: auth.user.id,

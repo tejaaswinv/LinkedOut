@@ -12,7 +12,12 @@ const profileSchema = z.object({
   department: z.string().trim().max(120).optional().nullable(),
   location: z.string().trim().max(120).optional().nullable(),
   employmentStatus: z.enum(['current','former','between_roles','student','other']).optional().nullable(),
-  currentCompanyId: z.string().uuid().optional().nullable()
+  currentCompanyId: z.string().uuid().optional().nullable(),
+  showCompany: z.boolean().optional(),
+  showPosition: z.boolean().optional(),
+  showDepartment: z.boolean().optional(),
+  showLocation: z.boolean().optional(),
+  completeOnboarding: z.boolean().optional()
 });
 
 export async function GET() {
@@ -22,8 +27,8 @@ export async function GET() {
   if (!admin) return NextResponse.json({ error: 'Supabase service role is not configured.' }, { status: 503 });
 
   const [{ data: profile }, { data: verifications }] = await Promise.all([
-    admin.from('profiles').select('id,username,bio,current_company_id,position,department,location,employment_status,identity_verified_at,created_at').eq('id', auth.user.id).maybeSingle(),
-    admin.from('employment_verifications').select('id,company_id,status,method,role_title,department,location,employment_status,verified_at,created_at').eq('user_id', auth.user.id).order('created_at', { ascending: false })
+    admin.from('profiles').select('id,username,bio,current_company_id,position,department,location,employment_status,identity_verified_at,onboarding_completed_at,show_company,show_position,show_department,show_location,created_at').eq('id', auth.user.id).maybeSingle(),
+    admin.from('employment_verifications').select('id,company_id,status,method,role_title,department,location,employment_status,verified_at,verified_until,reviewed_at,review_note,created_at').eq('user_id', auth.user.id).order('created_at', { ascending: false })
   ]);
 
   const companyIds = [...new Set((verifications || []).map((v) => v.company_id).concat(profile?.current_company_id || []).filter(Boolean))];
@@ -34,7 +39,8 @@ export async function GET() {
     profile: {
       ...profile,
       emailVerified: Boolean(auth.user.email_confirmed_at),
-      currentCompany: companyMap[profile?.current_company_id] || null
+      currentCompany: companyMap[profile?.current_company_id] || null,
+      onboardingComplete: Boolean(profile?.onboarding_completed_at)
     },
     verifications: (verifications || []).map((v) => ({ ...v, company: companyMap[v.company_id] || null }))
   });
@@ -58,7 +64,12 @@ export async function PATCH(request) {
     location: input.location || null,
     employment_status: input.employmentStatus || null,
     current_company_id: input.currentCompanyId || null,
-    identity_verified_at: auth.user.email_confirmed_at ? new Date().toISOString() : null
+    show_company: input.showCompany ?? true,
+    show_position: input.showPosition ?? true,
+    show_department: input.showDepartment ?? false,
+    show_location: input.showLocation ?? true,
+    identity_verified_at: auth.user.email_confirmed_at ? new Date().toISOString() : null,
+    ...(input.completeOnboarding ? { onboarding_completed_at: new Date().toISOString() } : {})
   };
 
   const { data, error } = await admin.from('profiles').update(update).eq('id', auth.user.id).select('*').single();

@@ -44,13 +44,17 @@ export async function PATCH(request) {
 
   const {data:v,error:readError}=await admin.from('employment_verifications').select('*').eq('id',input.id).maybeSingle();
   if(readError||!v)return NextResponse.json({error:readError?.message||'Verification not found.'},{status:readError?500:404});
-  const now=new Date().toISOString();
+  const now=new Date();
+  const nowIso=now.toISOString();
+  const verifiedUntil=input.decision==='verified'&&v.employment_status==='current'?new Date(now.getTime()+180*24*60*60*1000).toISOString():null;
   const {error}=await admin.from('employment_verifications').update({
     status:input.decision,
-    verified_at:input.decision==='verified'?now:null,
-    reviewed_at:now,
+    verified_at:input.decision==='verified'?nowIso:null,
+    verified_until:verifiedUntil,
+    reviewed_at:nowIso,
     review_note:input.note||null,
-    evidence_path:null
+    evidence_path:null,
+    evidence_deleted_at:v.evidence_path?nowIso:null
   }).eq('id',input.id);
   if(error)return NextResponse.json({error:error.message},{status:500});
   if(v.evidence_path)await admin.storage.from('employment-evidence').remove([v.evidence_path]);

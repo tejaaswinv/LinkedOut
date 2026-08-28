@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import Nav from '../components/Nav';
 import Sidebar from '../components/Sidebar';
@@ -10,10 +11,13 @@ import ReviewCard from '../components/ReviewCard';
 import RightRail from '../components/RightRail';
 import LandingPage from '../components/LandingPage';
 import Logo from '../components/Logo';
+import { authFetch } from '../lib/authFetch';
 import { getFirebaseAuth } from '../lib/firebase/client';
 
 export default function Home() {
+  const router = useRouter();
   const [user, setUser] = useState(undefined);
+  const [profileReady, setProfileReady] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [contentLoaded, setContentLoaded] = useState(false);
@@ -28,22 +32,48 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setProfileReady(false);
+      return;
+    }
+    let active = true;
     setContentLoaded(false);
-    Promise.all([
-      fetch('/api/companies?limit=8').then((r) => r.json()),
-      fetch('/api/reviews?limit=10').then((r) => r.json())
-    ]).then(([companyData, reviewData]) => {
-      setCompanies(Array.isArray(companyData.companies) ? companyData.companies : []);
-      setReviews(Array.isArray(reviewData.reviews) ? reviewData.reviews : []);
-    }).catch(() => {
-      setCompanies([]);
-      setReviews([]);
-    }).finally(() => setContentLoaded(true));
-  }, [user]);
+    setProfileReady(false);
+    authFetch('/api/profile')
+      .then(async (response) => ({ status:response.status, ok:response.ok, data:await response.json() }))
+      .then(async ({ status, ok, data }) => {
+        if (!active) return;
+        if (status === 401) {
+          setUser(null);
+          return;
+        }
+        if (!ok) throw new Error(data.error || 'Could not load profile.');
+        if (!data.profile?.onboardingComplete) {
+          router.replace('/onboarding');
+          return;
+        }
+        setProfileReady(true);
+        const [companyData, reviewData] = await Promise.all([
+          fetch('/api/companies?limit=8').then((r) => r.json()),
+          fetch('/api/reviews?limit=10').then((r) => r.json())
+        ]);
+        if (!active) return;
+        setCompanies(Array.isArray(companyData.companies) ? companyData.companies : []);
+        setReviews(Array.isArray(reviewData.reviews) ? reviewData.reviews : []);
+        setContentLoaded(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setCompanies([]);
+        setReviews([]);
+        setProfileReady(true);
+        setContentLoaded(true);
+      });
+    return () => { active = false; };
+  }, [user, router]);
 
-  if (user === undefined) {
-    return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#f7faff'}}><div style={{textAlign:'center'}}><Logo/><p style={{color:'#667085',marginTop:16}}>Checking your LinkedOut session…</p></div></main>;
+  if (user === undefined || (user && !profileReady)) {
+    return <main style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'#f7faff'}}><div style={{textAlign:'center'}}><Logo/><p style={{color:'#667085',marginTop:16}}>{user === undefined ? 'Checking your LinkedOut session…' : 'Preparing your pseudonymous profile…'}</p></div></main>;
   }
 
   if (!user) return <LandingPage />;

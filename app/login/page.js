@@ -62,9 +62,9 @@ export default function LoginPage() {
           await credential.user.delete().catch(() => {});
           throw error;
         }
-        await sendEmailVerification(credential.user, { url: `${window.location.origin}/profile` });
+        await sendEmailVerification(credential.user, { url: `${window.location.origin}/onboarding` });
         setMessage('Account created. We sent a verification link to your private email.');
-        setTimeout(() => router.push('/profile'), 600);
+        setTimeout(() => router.push('/onboarding'), 600);
       } else {
         await signInWithEmailAndPassword(auth, form.email, form.password);
         router.push('/');
@@ -87,7 +87,7 @@ export default function LoginPage() {
       await signInWithPopup(auth, getGoogleProvider());
       // First API call creates the private LinkedOut identity and a random public pseudonym.
       await authFetch('/api/profile');
-      router.push('/profile');
+      router.push('/onboarding');
     } catch (error) {
       setMessage(String(error?.message || error).replace(/^Firebase:\s*/i, ''));
     } finally {

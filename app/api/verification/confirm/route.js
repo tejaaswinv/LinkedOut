@@ -37,14 +37,14 @@ export async function POST(request) {
     .maybeSingle();
 
   if (!row) return NextResponse.json({ error: 'Verification request not found.' }, { status: 404 });
-  if (row.status === 'verified') return NextResponse.json({ verified: true });
+  if (row.status === 'verified') return NextResponse.json({ verified: true, verifiedUntil: row.verified_until || null });
   if (row.status !== 'pending') return NextResponse.json({ error: `Verification is ${row.status}.` }, { status: 400 });
   if (row.attempts >= 5) {
-    await admin.from('employment_verifications').update({ status: 'expired' }).eq('id', row.id);
+    await admin.from('employment_verifications').update({ status: 'expired', code_hash: null, code_expires_at: null }).eq('id', row.id);
     return NextResponse.json({ error: 'Too many attempts. Start a new verification.' }, { status: 429 });
   }
   if (!row.code_expires_at || new Date(row.code_expires_at).getTime() < Date.now()) {
-    await admin.from('employment_verifications').update({ status: 'expired' }).eq('id', row.id);
+    await admin.from('employment_verifications').update({ status: 'expired', code_hash: null, code_expires_at: null }).eq('id', row.id);
     return NextResponse.json({ error: 'Code expired. Start a new verification.' }, { status: 400 });
   }
 
@@ -54,23 +54,34 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Incorrect code.' }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
+  const now = new Date();
+  const verifiedAt = now.toISOString();
+  const verifiedUntil = row.employment_status === 'current'
+    ? new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000).toISOString()
+    : null;
+
   const { error } = await admin.from('employment_verifications').update({
     status: 'verified',
-    verified_at: now,
+    verified_at: verifiedAt,
+    verified_until: verifiedUntil,
     code_hash: null,
-    code_expires_at: null
+    code_expires_at: null,
+    attempts: row.attempts
   }).eq('id', row.id);
+  if (error?.code === '23505') {
+    return NextResponse.json({ error: 'That work email is already associated with another verified LinkedOut account.' }, { status: 409 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  await admin.from('profiles').update({
-    current_company_id: row.employment_status === 'current' ? row.company_id : undefined,
+  const profileUpdate = {
     position: row.role_title || undefined,
     department: row.department || undefined,
     location: row.location || undefined,
     employment_status: row.employment_status || undefined,
-    identity_verified_at: auth.user.email_confirmed_at ? now : undefined
-  }).eq('id', auth.user.id);
+    identity_verified_at: auth.user.email_confirmed_at ? verifiedAt : undefined
+  };
+  if (row.employment_status === 'current') profileUpdate.current_company_id = row.company_id;
+  await admin.from('profiles').update(profileUpdate).eq('id', auth.user.id);
 
-  return NextResponse.json({ verified: true });
+  return NextResponse.json({ verified: true, verifiedUntil });
 }

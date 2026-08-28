@@ -29,9 +29,9 @@ export default function Sidebar() {
         setProfile({
           username: p.username,
           status,
-          employer: p.currentCompany?.name || 'Professional context private',
-          role: p.position || 'Add your position',
-          location: p.location || 'Add your location'
+          employer: p.show_company === false ? 'Employer hidden' : (p.currentCompany?.name || 'No employer selected'),
+          role: p.show_position === false ? 'Position hidden' : (p.position || 'Add your position'),
+          location: p.show_location === false ? 'Location hidden' : (p.location || 'Add your location')
         });
       })
       .catch(() => {})
