@@ -175,6 +175,6 @@ export default function VerifyPage() {
       {message && <div className="authMessage">{message}</div>}
       <button className="button primary submit" disabled={busy}>{busy?'Uploading…':'Submit privately for verification'}</button>
     </form>}
-    <div className="verifyFoot"><Link href="/profile">← Back to profile</Link></div>
+    <div className="verifyFoot"><Link href="/verify/university">Verify a university instead</Link><span> · </span><Link href="/profile">Back to profile</Link></div>
   </main></>;
 }
