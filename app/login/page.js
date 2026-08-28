@@ -24,6 +24,7 @@ export default function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('error')) setMessage(params.get('error'));
+    if (params.get('mode') === 'signup') setMode('signup');
   }, []);
 
   const ensureUsername = async (username) => {
