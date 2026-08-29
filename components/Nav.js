@@ -9,6 +9,7 @@ import { getFirebaseAuth } from '../lib/firebase/client';
 const items = [
   ['/', '⌂', 'Home'],
   ['/companies', '▦', 'Companies'],
+  ['/universities', '▧', 'Universities'],
   ['/reviews', '▤', 'Reviews'],
   ['/post', '✎', 'Post']
 ];
@@ -24,7 +25,7 @@ export default function Nav() {
   return (
     <header className="topbar">
       <Link href="/" className="logoLink"><Logo compact /></Link>
-      <div className="topSearch"><span>⌕</span><input placeholder="Search companies, roles, or workplaces" onKeyDown={e=>{if(e.key==='Enter'&&e.currentTarget.value.trim())window.location.href=`/companies?q=${encodeURIComponent(e.currentTarget.value.trim())}`}}/></div>
+      <div className="topSearch"><span>⌕</span><input placeholder="Search companies or universities" onKeyDown={e=>{if(e.key==='Enter'&&e.currentTarget.value.trim())window.location.href=`/companies?q=${encodeURIComponent(e.currentTarget.value.trim())}`}}/></div>
       <nav className="navlinks">
         {items.map(([href, icon, label]) => (
           <Link href={href} key={href} className={path === href ? 'active' : ''}>

@@ -5,7 +5,13 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "catalog:companies": "node scripts/seed-major-companies.mjs",
+    "catalog:ror": "node scripts/import-ror-universities.mjs",
+    "catalog:wikidata:universities": "node scripts/enrich-wikidata.mjs universities 500",
+    "catalog:wikidata:companies": "node scripts/enrich-wikidata.mjs companies 500",
+    "catalog:ror:latest": "node scripts/sync-ror-universities.mjs",
+    "catalog:ror:all": "node scripts/sync-ror-universities.mjs --all-education"
   },
   "dependencies": {
     "@supabase/ssr": "^0.6.1",

@@ -14,14 +14,17 @@ const universityCreateSchema = z.object({
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get('q') || '').trim();
-  const limit = Math.min(150, Math.max(1, Number(searchParams.get('limit') || 100)));
+  const slug = (searchParams.get('slug') || '').trim();
+  const limit = Math.min(200, Math.max(1, Number(searchParams.get('limit') || 100)));
   const supabase = createPublicClient();
   if (!supabase) return NextResponse.json({ universities: [], error: 'Supabase is not configured.' }, { status: 503 });
 
-  let query = supabase.from('universities').select('id,slug,name,domain,domains,website,city,country,source').order('name').limit(limit);
+  let query = supabase.from('universities').select('id,slug,name,domain,domains,website,city,country,source,logo_url,description,institution_type,founded_year,ror_id,wikidata_id,wikipedia_url,ranking_provider,ranking_year,ranking_position,ranking_display,ranking_score,ranking_source_url,metadata_sources,last_enriched_at');
+  if (slug) query = query.eq('slug', slug);
+  query = query.order('ranking_position', { ascending: true, nullsFirst: false }).order('name').limit(limit);
   if (q) {
     const safe = q.replace(/[,%()]/g, ' ').trim();
-    if (safe) query = query.or(`name.ilike.%${safe}%,country.ilike.%${safe}%,city.ilike.%${safe}%`);
+    if (safe) query = query.or(`name.ilike.%${safe}%,country.ilike.%${safe}%,city.ilike.%${safe}%,domain.ilike.%${safe}%`);
   }
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -39,7 +42,7 @@ export async function POST(request) {
   catch (error) { return NextResponse.json({ error: error.errors?.[0]?.message || 'Invalid university name.' }, { status: 400 }); }
 
   const name = input.name.replace(/\s+/g, ' ').trim();
-  const { data: possibleMatches, error: lookupError } = await admin.from('universities').select('id,slug,name,domain,domains,website,city,country,source').ilike('name', name).limit(20);
+  const { data: possibleMatches, error: lookupError } = await admin.from('universities').select('id,slug,name,domain,domains,website,city,country,source,logo_url,description,institution_type,founded_year,ror_id,wikidata_id,wikipedia_url,ranking_provider,ranking_year,ranking_position,ranking_display,ranking_score,ranking_source_url,metadata_sources,last_enriched_at').ilike('name', name).limit(20);
   if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 500 });
   const existing = (possibleMatches || []).find((university) => university.name?.trim().toLocaleLowerCase() === name.toLocaleLowerCase());
   if (existing) return NextResponse.json({ university: existing, created: false });
@@ -57,10 +60,10 @@ export async function POST(request) {
     name,
     slug,
     source: 'user_submitted'
-  }).select('id,slug,name,domain,domains,website,city,country,source').single();
+  }).select('id,slug,name,domain,domains,website,city,country,source,logo_url,description,institution_type,founded_year,ror_id,wikidata_id,wikipedia_url,ranking_provider,ranking_year,ranking_position,ranking_display,ranking_score,ranking_source_url,metadata_sources,last_enriched_at').single();
 
   if (error?.code === '23505') {
-    const { data: match } = await admin.from('universities').select('id,slug,name,domain,domains,website,city,country,source').eq('slug', slug).maybeSingle();
+    const { data: match } = await admin.from('universities').select('id,slug,name,domain,domains,website,city,country,source,logo_url,description,institution_type,founded_year,ror_id,wikidata_id,wikipedia_url,ranking_provider,ranking_year,ranking_position,ranking_display,ranking_score,ranking_source_url,metadata_sources,last_enriched_at').eq('slug', slug).maybeSingle();
     if (match) return NextResponse.json({ university: match, created: false });
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
