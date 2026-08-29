@@ -3,6 +3,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { requireVerifiedUser } from '../../../../lib/apiAuth';
 import { createAdminClient } from '../../../../lib/supabase/admin';
+import { sendVerificationCode } from '../../../../lib/email/resend';
 
 const schema = z.object({
   company: z.string().min(1),
@@ -35,25 +36,6 @@ function domainMatches(actual, allowed) {
 
 function isStillValid(row) {
   return row?.status === 'verified' && (!row.verified_until || new Date(row.verified_until).getTime() > Date.now());
-}
-
-async function sendCode(email, companyName, code) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.VERIFICATION_FROM_EMAIL;
-  if (!apiKey || !from) return false;
-
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from,
-      to: [email],
-      subject: `Your LinkedOut ${companyName} verification code`,
-      text: `Your LinkedOut work-email verification code is ${code}. It expires in 10 minutes. If you did not request this, ignore this email.`
-    })
-  });
-  if (!response.ok) throw new Error(`Verification email provider returned ${response.status}.`);
-  return true;
 }
 
 export async function POST(request) {
@@ -158,8 +140,13 @@ export async function POST(request) {
 
   const devBypass = process.env.VERIFICATION_DEV_BYPASS === 'true';
   try {
-    const sent = await sendCode(normalizedEmail, company.name, code);
-    if (!sent && !devBypass) {
+    const delivery = await sendVerificationCode({
+      to: normalizedEmail,
+      code,
+      contextName: company.name,
+      verificationKind: 'employment'
+    });
+    if (!delivery.sent && !devBypass) {
       await admin.from('employment_verifications').delete().eq('id', id);
       return NextResponse.json({ error: 'Email delivery is not configured. Add RESEND_API_KEY or use document verification.' }, { status: 503 });
     }

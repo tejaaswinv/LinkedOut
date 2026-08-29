@@ -25,3 +25,8 @@
 
 .emailVerifyStatus{margin-top:10px;padding-top:10px;border-top:1px solid #d7e5f6;color:#43536b;font-size:13px;line-height:1.45}
 .onboardingEmailActions{display:flex;gap:8px;flex-wrap:wrap}.onboardingEmailActions button:disabled{opacity:.6;cursor:not-allowed}.onboardingEmailStatus{display:block;margin-top:4px;font-style:normal;color:#43536b;line-height:1.35}
+
+/* v0.9 signup polish + resilient form layout */
+.authShell{grid-template-columns:minmax(0,1.05fr) minmax(360px,.95fr);width:100%}.authBrand,.authCard{min-width:0}.authCard{width:100%;max-width:470px;justify-self:end;overflow:hidden}.authCard h2,.authCard>p,.authMessage,.authTrust span,.authSwitch{overflow-wrap:anywhere;word-break:normal}.authCard label{min-width:0}.authCard input{min-width:0;max-width:100%;height:48px;line-height:1.2}.authCard .button.authButton{display:flex;align-items:center;justify-content:center;width:100%;min-height:48px;margin:16px 0 0;padding:12px 16px;white-space:normal;line-height:1.25;border-radius:9px}.authCard .button.authButton.secondary{margin-top:0}.authDivider{margin:16px 0}.authSwitch{margin:8px 0 0;min-height:42px;line-height:1.35}.authTrust span{max-width:100%;line-height:1.35}.authCard button:disabled{opacity:.62;cursor:not-allowed}.authCard input:focus{border-color:#73aee8;box-shadow:0 0 0 3px rgba(10,102,194,.08)}
+@media(max-width:900px){.authCard{justify-self:stretch;max-width:none}.authShell{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){.authShell{gap:22px}.authCard{padding:22px}.authBrand>p{font-size:16px}.authTrust{gap:7px}.authTrust span{font-size:12px;padding:8px 10px}.authCard h2{font-size:24px}}

@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { sendEmailVerification } from 'firebase/auth';
 import Logo from '../../components/Logo';
 import CompanyCombobox from '../../components/CompanyCombobox';
+import UniversityCombobox from '../../components/UniversityCombobox';
 import { authFetch, requireFirebaseUser } from '../../lib/authFetch';
 
 const initialForm = {
@@ -20,7 +21,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(initialForm);
   const [selectedCompany, setSelectedCompany] = useState(null);
-  const [universities, setUniversities] = useState([]);
+  const [selectedUniversity, setSelectedUniversity] = useState(null);
   const [emailVerified, setEmailVerified] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -30,10 +31,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      authFetch('/api/profile').then(async (r) => ({ status:r.status, ok:r.ok, data:await r.json() })),
-      fetch('/api/universities?limit=150').then((r) => r.json())
-    ]).then(([profileResult, universityResult]) => {
+    authFetch('/api/profile').then(async (r) => ({ status:r.status, ok:r.ok, data:await r.json() })).then((profileResult) => {
       if (!active) return;
       if (profileResult.status === 401) { router.replace('/login'); return; }
       if (!profileResult.ok) { setMessage(profileResult.data.error || 'Could not prepare onboarding.'); return; }
@@ -47,12 +45,11 @@ export default function OnboardingPage() {
       });
       setEmailVerified(Boolean(p.emailVerified));
       setSelectedCompany(p.currentCompany || null);
-      setUniversities(Array.isArray(universityResult.universities) ? universityResult.universities : []);
+      setSelectedUniversity(p.currentUniversity || null);
     }).catch(() => setMessage('Could not prepare onboarding.')).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [router]);
 
-  const selectedUniversity = useMemo(() => universities.find((u) => u.id === form.currentUniversityId), [universities, form.currentUniversityId]);
 
   const validateStep = () => {
     setMessage('');
@@ -120,7 +117,7 @@ export default function OnboardingPage() {
 
   if (loading) return <main className="onboardingLoading"><Logo/><p>Setting up your pseudonymous profile…</p></main>;
 
-  const canVerify = (['current','former'].includes(form.employmentStatus) && form.currentCompanyId) || (form.employmentStatus === 'student' && form.currentUniversityId);
+  const canVerify = (['current','former'].includes(form.employmentStatus) && form.currentCompanyId) || (form.employmentStatus === 'student' && form.currentUniversityId && Boolean(selectedUniversity?.domain));
   const verifyLabel = form.employmentStatus === 'student' ? 'Save & verify university' : 'Save & verify workplace';
 
   return <main className="onboardingShell">
@@ -137,9 +134,9 @@ export default function OnboardingPage() {
       {step===1&&<><h2>Your public pseudonym</h2><p>This is the name coworkers, students and job seekers will see.</p><label>Public username<input autoFocus value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="@quarterly_crisis" /></label><label>Short bio <span className="optional">optional</span><textarea rows="3" value={form.bio} onChange={e=>setForm({...form,bio:e.target.value})} placeholder="e.g. CS student, former intern, interested in startup culture" /></label><div className={`onboardingTrust ${emailVerified?'verified':''}`}><span>{emailVerified?'✓':'○'}</span><div><b>{emailVerified?'Login email verified':'Login email verification pending'}</b><small>Your email address is not shown publicly.{emailMessage&&<em className="onboardingEmailStatus">{emailMessage}</em>}</small></div>{!emailVerified&&<div className="onboardingEmailActions"><button type="button" onClick={resendEmail} disabled={Boolean(emailAction)}>{emailAction==='resend'?'Sending…':'Resend email'}</button><button type="button" onClick={refreshEmail} disabled={Boolean(emailAction)}>{emailAction==='refresh'?'Checking…':'I verified it'}</button></div>}</div></>}
 
       {step===2&&<><h2>Professional or university context</h2><p>This is profile context, not affiliation verification yet. You can verify it after onboarding.</p>
-        <label>Status<select value={form.employmentStatus} onChange={e=>{const s=e.target.value;const keepCompany=['current','former'].includes(s);if(!keepCompany)setSelectedCompany(null);setForm({...form,employmentStatus:s,currentCompanyId:keepCompany?form.currentCompanyId:'',currentUniversityId:s==='student'?form.currentUniversityId:''})}}><option value="" disabled>Select your status</option><option value="current">Current employee</option><option value="former">Former employee</option><option value="between_roles">Between roles</option><option value="student">Student</option><option value="other">Other</option></select></label>
+        <label>Status<select value={form.employmentStatus} onChange={e=>{const s=e.target.value;const keepCompany=['current','former'].includes(s);const keepUniversity=s==='student';if(!keepCompany)setSelectedCompany(null);if(!keepUniversity)setSelectedUniversity(null);setForm({...form,employmentStatus:s,currentCompanyId:keepCompany?form.currentCompanyId:'',currentUniversityId:keepUniversity?form.currentUniversityId:''})}}><option value="" disabled>Select your status</option><option value="current">Current employee</option><option value="former">Former employee</option><option value="between_roles">Between roles</option><option value="student">Student</option><option value="other">Other</option></select></label>
         {['current','former'].includes(form.employmentStatus)&&<label>Company<CompanyCombobox selectedCompany={selectedCompany} onSelect={(company)=>{setSelectedCompany(company);setForm({...form,currentCompanyId:company?.id||''})}} />{selectedCompany&&<small className="fieldHelp">{selectedCompany.source==='user_submitted'?'New LinkedOut company page':`LinkedOut company page${selectedCompany.domain?` · ${selectedCompany.domain}`:''}`}</small>}</label>}
-        {form.employmentStatus==='student'&&<><label>University<select value={form.currentUniversityId} onChange={e=>setForm({...form,currentUniversityId:e.target.value})}><option value="">Select a recognized university</option>{universities.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select>{selectedUniversity&&<small className="fieldHelp">Recognized university · {selectedUniversity.domain||selectedUniversity.country}</small>}</label><div className="formRow"><label>Field of study <span className="optional">optional</span><input value={form.fieldOfStudy} onChange={e=>setForm({...form,fieldOfStudy:e.target.value})} placeholder="Computer Science" /></label><label>Graduation year <span className="optional">optional</span><input type="number" min="1950" max="2100" value={form.graduationYear} onChange={e=>setForm({...form,graduationYear:e.target.value})} placeholder="2029" /></label></div></>}
+        {form.employmentStatus==='student'&&<><label>University<UniversityCombobox selectedUniversity={selectedUniversity} onSelect={(university)=>{setSelectedUniversity(university);setForm({...form,currentUniversityId:university?.id||''})}} />{selectedUniversity&&<small className="fieldHelp">{selectedUniversity.source==='user_submitted'?'New LinkedOut university entry · email verification will be available after its official domain is reviewed':`LinkedOut university page${selectedUniversity.domain?` · ${selectedUniversity.domain}`:''}`}</small>}</label><div className="formRow"><label>Field of study <span className="optional">optional</span><input value={form.fieldOfStudy} onChange={e=>setForm({...form,fieldOfStudy:e.target.value})} placeholder="Computer Science" /></label><label>Graduation year <span className="optional">optional</span><input type="number" min="1950" max="2100" value={form.graduationYear} onChange={e=>setForm({...form,graduationYear:e.target.value})} placeholder="2029" /></label></div></>}
         {form.employmentStatus!=='student'&&<div className="formRow"><label>Position <span className="optional">optional</span><input value={form.position} onChange={e=>setForm({...form,position:e.target.value})} placeholder="Senior Analyst" /></label><label>Department <span className="optional">optional</span><input value={form.department} onChange={e=>setForm({...form,department:e.target.value})} placeholder="Operations" /></label></div>}
         <label>Location <span className="optional">optional</span><input value={form.location} onChange={e=>setForm({...form,location:e.target.value})} placeholder="Singapore" /></label>
       </>}

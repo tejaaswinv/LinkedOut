@@ -42,7 +42,7 @@ export async function GET() {
   const universityIds = [...new Set((studentVerifications || []).map((v) => v.university_id).concat(profile?.current_university_id || []).filter(Boolean))];
   const [{ data: companies }, { data: universities }] = await Promise.all([
     companyIds.length ? admin.from('companies').select('id,name,slug,domain,source').in('id', companyIds) : Promise.resolve({ data: [] }),
-    universityIds.length ? admin.from('universities').select('id,name,slug,domain,city,country').in('id', universityIds) : Promise.resolve({ data: [] })
+    universityIds.length ? admin.from('universities').select('id,name,slug,domain,domains,city,country,source').in('id', universityIds) : Promise.resolve({ data: [] })
   ]);
   const companyMap = Object.fromEntries((companies || []).map((c) => [c.id, c]));
   const universityMap = Object.fromEntries((universities || []).map((u) => [u.id, u]));
