@@ -62,7 +62,9 @@ export default function LoginPage() {
           await credential.user.delete().catch(() => {});
           throw error;
         }
-        await sendEmailVerification(credential.user, { url: `${window.location.origin}/onboarding` });
+        // Use Firebase's hosted verification handler so preview/canonical domains do not
+        // need to match a continue URL for the email to send.
+        await sendEmailVerification(credential.user);
         setMessage('Account created. We sent a verification link to your private email.');
         setTimeout(() => router.push('/onboarding'), 600);
       } else {

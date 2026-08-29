@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { sendEmailVerification } from 'firebase/auth';
 import Logo from '../../components/Logo';
 import CompanyCombobox from '../../components/CompanyCombobox';
 import { authFetch, requireFirebaseUser } from '../../lib/authFetch';
@@ -24,6 +25,8 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [emailAction, setEmailAction] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -84,7 +87,36 @@ export default function OnboardingPage() {
     finally { setBusy(false); }
   };
 
-  const refreshEmail = async () => { const user = await requireFirebaseUser(); if (!user) return router.replace('/login'); await user.reload(); await user.getIdToken(true); setEmailVerified(Boolean(user.emailVerified)); };
+  const resendEmail = async () => {
+    setEmailMessage(''); setEmailAction('resend');
+    const user = await requireFirebaseUser();
+    if (!user) { setEmailAction(''); return router.replace('/login'); }
+    try {
+      await sendEmailVerification(user);
+      setEmailMessage(`Verification email sent to ${user.email||'your login email'}. Check spam too.`);
+    } catch (error) {
+      const code=String(error?.code||'');
+      setEmailMessage(code==='auth/too-many-requests'?'Too many verification attempts. Wait a few minutes and try again.':(error?.message||'Could not send verification email.'));
+    } finally { setEmailAction(''); }
+  };
+  const refreshEmail = async () => {
+    setEmailMessage(''); setEmailAction('refresh');
+    const user = await requireFirebaseUser();
+    if (!user) { setEmailAction(''); return router.replace('/login'); }
+    try {
+      await user.reload();
+      if (!user.emailVerified) {
+        setEmailVerified(false);
+        setEmailMessage('Firebase still shows this email as unverified. Open the verification link first, then try again.');
+        return;
+      }
+      await user.getIdToken(true);
+      setEmailVerified(true);
+      setEmailMessage('Email verified ✓');
+    } catch (error) {
+      setEmailMessage(error?.message||'Could not refresh verification status.');
+    } finally { setEmailAction(''); }
+  };
 
   if (loading) return <main className="onboardingLoading"><Logo/><p>Setting up your pseudonymous profile…</p></main>;
 
@@ -102,7 +134,7 @@ export default function OnboardingPage() {
     </section>
 
     <section className="card onboardingCard">
-      {step===1&&<><h2>Your public pseudonym</h2><p>This is the name coworkers, students and job seekers will see.</p><label>Public username<input autoFocus value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="@quarterly_crisis" /></label><label>Short bio <span className="optional">optional</span><textarea rows="3" value={form.bio} onChange={e=>setForm({...form,bio:e.target.value})} placeholder="e.g. CS student, former intern, interested in startup culture" /></label><div className={`onboardingTrust ${emailVerified?'verified':''}`}><span>{emailVerified?'✓':'○'}</span><div><b>{emailVerified?'Login email verified':'Login email verification pending'}</b><small>Your email address is not shown publicly.</small></div>{!emailVerified&&<button type="button" onClick={refreshEmail}>I verified it</button>}</div></>}
+      {step===1&&<><h2>Your public pseudonym</h2><p>This is the name coworkers, students and job seekers will see.</p><label>Public username<input autoFocus value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="@quarterly_crisis" /></label><label>Short bio <span className="optional">optional</span><textarea rows="3" value={form.bio} onChange={e=>setForm({...form,bio:e.target.value})} placeholder="e.g. CS student, former intern, interested in startup culture" /></label><div className={`onboardingTrust ${emailVerified?'verified':''}`}><span>{emailVerified?'✓':'○'}</span><div><b>{emailVerified?'Login email verified':'Login email verification pending'}</b><small>Your email address is not shown publicly.{emailMessage&&<em className="onboardingEmailStatus">{emailMessage}</em>}</small></div>{!emailVerified&&<div className="onboardingEmailActions"><button type="button" onClick={resendEmail} disabled={Boolean(emailAction)}>{emailAction==='resend'?'Sending…':'Resend email'}</button><button type="button" onClick={refreshEmail} disabled={Boolean(emailAction)}>{emailAction==='refresh'?'Checking…':'I verified it'}</button></div>}</div></>}
 
       {step===2&&<><h2>Professional or university context</h2><p>This is profile context, not affiliation verification yet. You can verify it after onboarding.</p>
         <label>Status<select value={form.employmentStatus} onChange={e=>{const s=e.target.value;const keepCompany=['current','former'].includes(s);if(!keepCompany)setSelectedCompany(null);setForm({...form,employmentStatus:s,currentCompanyId:keepCompany?form.currentCompanyId:'',currentUniversityId:s==='student'?form.currentUniversityId:''})}}><option value="" disabled>Select your status</option><option value="current">Current employee</option><option value="former">Former employee</option><option value="between_roles">Between roles</option><option value="student">Student</option><option value="other">Other</option></select></label>

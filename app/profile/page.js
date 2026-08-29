@@ -18,6 +18,8 @@ export default function Profile(){
   const [studentVerifications,setStudentVerifications]=useState([]);
   const [emailVerified,setEmailVerified]=useState(false);
   const [message,setMessage]=useState('');
+  const [emailMessage,setEmailMessage]=useState('');
+  const [emailAction,setEmailAction]=useState('');
 
   const load=async()=>{
     const [r,universityResponse]=await Promise.all([authFetch('/api/profile'),fetch('/api/universities?limit=150')]);
@@ -38,14 +40,49 @@ export default function Profile(){
 
   const save=async(e)=>{e.preventDefault();setMessage('');const r=await authFetch('/api/profile',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,currentCompanyId:form.currentCompanyId||null,currentUniversityId:form.currentUniversityId||null,graduationYear:form.graduationYear?Number(form.graduationYear):null})});const d=await r.json();setMessage(r.ok?'Profile and privacy settings saved.':d.error||'Could not save profile.');};
   const signOutNow=async()=>{const auth=getFirebaseAuth();if(auth)await signOut(auth);router.push('/');router.refresh();};
-  const resend=async()=>{setMessage('');const user=await requireFirebaseUser();if(!user){router.push('/login');return;}try{await sendEmailVerification(user,{url:`${window.location.origin}/profile`});setMessage('Verification email sent.');}catch(error){setMessage(error.message||'Could not send verification email.');}};
-  const refreshVerification=async()=>{const user=await requireFirebaseUser();if(!user)return;await user.reload();await user.getIdToken(true);await load();};
+  const resend=async()=>{
+    setEmailMessage('');
+    setEmailAction('resend');
+    const user=await requireFirebaseUser();
+    if(!user){setEmailAction('');router.push('/login');return;}
+    try{
+      // Do not set a continue URL here. Firebase then uses its hosted action handler
+      // and the button works across localhost, preview deployments and the canonical domain.
+      await sendEmailVerification(user);
+      setEmailMessage(`Verification email sent to ${user.email||'your login email'}. Check spam too.`);
+    }catch(error){
+      const code=String(error?.code||'');
+      if(code==='auth/too-many-requests')setEmailMessage('Too many verification attempts. Wait a few minutes, then try again.');
+      else if(code==='auth/network-request-failed')setEmailMessage('Network error while contacting Firebase. Check your connection and try again.');
+      else setEmailMessage(error?.message||'Could not send verification email.');
+    }finally{setEmailAction('');}
+  };
+  const refreshVerification=async()=>{
+    setEmailMessage('');
+    setEmailAction('refresh');
+    const user=await requireFirebaseUser();
+    if(!user){setEmailAction('');router.push('/login');return;}
+    try{
+      await user.reload();
+      if(!user.emailVerified){
+        setEmailVerified(false);
+        setEmailMessage('Firebase still shows this email as unverified. Open the verification link first, then try again.');
+        return;
+      }
+      await user.getIdToken(true);
+      setEmailVerified(true);
+      setEmailMessage('Email verified ✓ Updating your LinkedOut account…');
+      await load();
+    }catch(error){
+      setEmailMessage(error?.message||'Could not refresh verification status.');
+    }finally{setEmailAction('');}
+  };
 
   if(loading)return <><Nav/><main className="pageWrap narrow"><div className="card emptyState">Loading your private profile…</div></main></>;
   const isStudent=form.employmentStatus==='student';
   const isEmployee=['current','former'].includes(form.employmentStatus);
   return <><Nav/><main className="pageWrap narrow"><div className="card profilePage"><div className="profileCover tall"></div><div className="avatar profileHero">◕{emailVerified&&<span className="verifyDot">✓</span>}</div><h1>{form.username}</h1><div className="verified">{emailVerified?'Verified account':'Email verification pending'}</div>
-    {!emailVerified&&<div className="emailVerifyPanel"><p>Your login email stays private. Verify it to strengthen account trust.</p><div className="inlineActions"><button type="button" className="button secondary" onClick={resend}>Resend email</button><button type="button" className="button secondary" onClick={refreshVerification}>I verified it</button></div></div>}
+    {!emailVerified&&<div className="emailVerifyPanel"><p>Your login email stays private. Verify it to strengthen account trust.</p><div className="inlineActions"><button type="button" className="button secondary" onClick={resend} disabled={Boolean(emailAction)}>{emailAction==='resend'?'Sending…':'Resend email'}</button><button type="button" className="button secondary" onClick={refreshVerification} disabled={Boolean(emailAction)}>{emailAction==='refresh'?'Checking…':'I verified it'}</button></div>{emailMessage&&<div className="emailVerifyStatus" role="status">{emailMessage}</div>}</div>}
     <form className="profileEdit" onSubmit={save}>
       <h3>Public context</h3>
       <label>Username<input value={form.username} onChange={e=>setForm({...form,username:e.target.value})}/></label>
